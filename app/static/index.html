@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic CI/CD Repairs</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            margin: 0;
+            padding: 30px;
+        }
+
+        h1 {
+            color: #38bdf8;
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 40px;
+        }
+
+        .incident-card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 1px solid #334155;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .danger {
+            color: #ef4444;
+        }
+
+        .success {
+            color: #10b981;
+        }
+
+        pre {
+            background: #0b0f19;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 14px;
+            border: 1px solid #1e293b;
+            color: #cbd5e1;
+        }
+
+        code {
+            font-family: "Fira Code", monospace;
+        }
+
+        .flex {
+            display: flex;
+            gap: 30px;
+        }
+
+        .col {
+            flex: 1;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 15px;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .btn-approve {
+            background: #10b981;
+            color: white;
+            margin-right: 10px;
+        }
+
+        .btn-reject {
+            background: #ef4444;
+            color: white;
+        }
+
+        .risk-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+            border: 1px solid currentColor;
+        }
+
+        .risk-high {
+            background: rgba(220, 38, 38, 0.2);
+            color: #fca5a5;
+        }
+
+        .risk-low {
+            background: rgba(22, 163, 74, 0.2);
+            color: #86efac;
+        }
+
+        .status-badge {
+            float: right;
+            font-size: 14px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            background: #475569;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-approved {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+        }
+
+        .status-rejected {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+        }
+
+        h2 {
+            margin-top: 0;
+            color: #f8fafc;
+        }
+
+        h3 {
+            color: #94a3b8;
+            font-size: 1.1rem;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Agentic CI/CD Repairs</h1>
+    <div id="incidents-container" style="max-width: 1200px; margin: 0 auto;">Loading...</div>
+
+    <script>
+        async function fetchIncidents() {
+            const res = await fetch('/api/incidents');
+            const data = await res.json();
+            const container = document.getElementById('incidents-container');
+            container.innerHTML = '';
+
+            if (data.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color: #94a3b8; font-size: 18px;">No incidents found. Send a webhook to start.</p>';
+            }
+
+            data.forEach(inc => {
+                const fix = inc.fixes.length > 0 ? inc.fixes[inc.fixes.length - 1] : null;
+                let fixHtml = '<div style="text-align:center; padding: 40px; color:#38bdf8;"><strong>⏳ Multi-Agent Pipeline is currently analyzing this failure...</strong></div>';
+
+                if (fix) {
+                    const riskClass = fix.risk_score >= 50 ? 'risk-high' : 'risk-low';
+
+                    let actionsHtml = '';
+                    let statusClass = '';
+
+                    if (fix.status === 'pending_approval') {
+                        actionsHtml = `
+                            <button class="btn-approve" onclick="reviewFix(${fix.id}, 'approve')">✓ Approve Patch</button>
+                            <button class="btn-reject" onclick="reviewFix(${fix.id}, 'reject')">✕ Reject</button>
+                        `;
+                    } else if (fix.status === 'approved') {
+                        statusClass = 'status-approved';
+                        actionsHtml = `<strong style="color: #34d399; font-size: 1.1rem;">✓ Patch Approved (Mock PR Merged)</strong>`;
+                    } else {
+                        statusClass = 'status-rejected';
+                        actionsHtml = `<strong style="color: #f87171; font-size: 1.1rem;">✕ Patch Rejected</strong>`;
+                    }
+
+                    fixHtml = `
+                        <div class="flex">
+                            <div class="col" style="flex: 1.5;">
+                                <h3>🔎 Detective Agent Summary</h3>
+                                <p style="line-height: 1.6; font-size: 15px;">${fix.root_cause}</p>
+                                
+                                <h3>💻 Developer Agent Patch</h3>
+                                <pre><code>${fix.patch_code}</code></pre>
+                            </div>
+                            
+                            <div class="col" style="background: rgba(15, 23, 42, 0.5); padding: 20px; border-radius: 8px;">
+                                <h3>🛡️ Security Reviewer Agent</h3>
+                                <div style="margin: 20px 0;">
+                                    <span class="risk-badge ${riskClass}">Risk Score: ${fix.risk_score} / 100</span>
+                                </div>
+                                <p style="line-height: 1.5; color: #cbd5e1;">${fix.risk_reasoning}</p>
+                                
+                                <hr style="border-color:#334155; margin: 30px 0;" />
+                                
+                                <div style="text-align:center; margin-top: 20px;">
+                                    <p style="color: #94a3b8; font-size: 12px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px;">Human Authorization Required</p>
+                                    ${actionsHtml}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                container.innerHTML += `
+                    <div class="incident-card">
+                        <span class="status-badge ${inc.status === 'resolved' ? 'status-approved' : ''}">${inc.status}</span>
+                        <h2>${inc.repo_name} <span style="font-size:16px;color:#94a3b8; font-weight: normal; margin-left: 10px;">Commit: <code>${inc.commit_hash}</code></span></h2>
+                        
+                        <h3 style="border:none; margin-bottom: 5px;">RAW SYSTEM LOGS EXTRACTED:</h3>
+                        <pre style="max-height: 120px; margin-top: 0;"><code style="color: #ef4444">${inc.error_logs}</code></pre>
+                        
+                        <hr style="border-color:#334155; margin: 25px 0;" />
+                        ${fixHtml}
+                    </div>
+                `;
+            });
+        }
+
+        async function reviewFix(fixId, action) {
+            await fetch(`/api/fixes/${fixId}/${action}`, { method: 'POST' });
+            fetchIncidents();
+        }
+
+        // Fetch on load
+        fetchIncidents();
+
+        // Auto-refresh every 3 seconds to show background pipeline progress
+        setInterval(fetchIncidents, 3000); 
+    </script>
+</body>
+
+</html>

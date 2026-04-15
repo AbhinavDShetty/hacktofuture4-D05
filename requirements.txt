@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+sqlalchemy
+asyncpg
+pgvector
+langchain
+langchain-community
+jinja2
