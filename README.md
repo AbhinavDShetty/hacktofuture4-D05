@@ -1,86 +1,74 @@
-# HackToFuture 4.0 — Template
+# HackToFuture 4.0 — Agentic CI/CD Repair System
 
-Welcome to your official HackToFuture 4 repository.
-
-This repository template will be used for development, tracking progress, and final submission of your project. Ensure that all work is committed here within the allowed hackathon duration.
+An AI-driven DevOps system leveraging a Multi-Agent architecture to autonomously detect, diagnose, and propose surgical fixes for CI/CD failures, heavily gated by human oversight.
 
 ---
 
-### Instructions for the teams:
+## 🛑 Problem Statement / Idea
 
-- Fork the Repository and name the forked repo in this convention: hacktofuture4-team_id (for eg: hacktofuture4-A01)
+**What is the problem?**
+Modern CI/CD pipelines fail constantly due to trivial syntax errors, missing dependencies, or breaking upstream changes. Developers spend countless hours context-switching, reading massive unstructured error logs, and hunting down the exact line of code that caused the build to break. 
 
----
+**Why is it important?**
+Developer friction and pipeline downtime drastically reduce engineering velocity. Automated fixes are dangerous, but manually diagnosing every failure is inefficient.
 
-## Rules
-
-- Work must be done ONLY in the forked repository
-- Only Four Contributors are allowed.
-- After 36 hours, Please make PR to the Main Repository. A Form will be sent to fill the required information.
-- Do not copy code from other teams
-- All commits must be from individual GitHub accounts
-- Please provide meaningful commits for tracking.
-- Do not share your repository with other teams
-- Final submission must be pushed before the deadline
-- Any violation may lead to disqualification
+**Who are the target users?**
+DevOps Engineers, SREs, and Software Developers working in fast-paced continuous deployment environments.
 
 ---
 
-# The Final README Template 
+## 💡 Proposed Solution
 
-## Problem Statement / Idea
+**What are you building?**
+We built an **Agentic CI/CD Repair** pipeline. When a GitHub Actions build fails, a native hook extracts the logs and `git diff`, firing them to our backend. 
 
-Clearly describe the problem you are solving.
+**How does it solve the problem?**
+Instead of a human reading the logs, a **Multi-Agent AI Pipeline** (Detective ➔ Developer ➔ Security Reviewer) parses the logs natively, retrieves historical context using vector search, figures out exactly what broke, and writes the Git Diff patch to fix the repository automatically. 
 
-- What is the problem?
-- Why is it important?
-- Who are the target users?
-
----
-
-## Proposed Solution
-
-Explain your approach:
-
-- What are you building?
-- How does it solve the problem?
-- What makes your solution unique?
+**What makes your solution unique?**
+1. **Multi-Agent Architecture:** We don't rely on a single confused AI. We use 3 specific, specialized LangChain agents operating locally via Ollama.
+2. **Immutable Human Oversight:** To completely eliminate the danger of "Agentic AI breaking production," our system is locked. The Risk Score and Git Patch are held in a holding area until a human clicks "Approve" on our custom dashboard, allowing it to generate the fixing Pull Request safely.
 
 ---
 
-## Features
+## 🔥 Features
 
-List the core features of your project:
-
-- Feature 1
-- Feature 2
-- Feature 3
-
----
-
-## Tech Stack
-
-Mention all technologies used:
-
-- Frontend:
-- Backend:
-- Database:
-- APIs / Services:
-- Tools / Libraries:
+- **Automated Webhook Triggers:** Native CLI hooks safely bypass Docker-in-Docker Github action limitations.
+- **RAG Memory:** Utilizing PostgreSQL with the `pgvector` extension, the AI remembers past bugs and how they were solved.
+- **Strict Risk Assessment:** AI mathematically scores its proposed patches based on 5 security heuristics (Vulnerabilities, Scope, Database Alterations, etc).
+- **Oversight Dashboard:** Real-time web UI allowing developers to monitor AI telemetry and perform 1-click approvals for patches.
+- **Offline & Private AI:** Everything runs locally using `Ollama`, meaning no sensitive corporate source code is ever sent to OpenAI or cloud providers.
 
 ---
 
-## Project Setup Instructions
+## 🛠️ Tech Stack
 
-Provide clear steps to run your project:
+- **Frontend:** HTML5, CSS3, Vanilla JS
+- **Backend:** FastAPI (Python), Uvicorn, Async handlers
+- **AI & ML:** LangChain, Local Ollama (DeepSeek/LLaMA), RAG Embeddings
+- **Database:** PostgreSQL configured with `pgvector` and SQLAlchemy ORM
+- **Infra:** Docker, Docker Compose
+
+---
+
+## 🚀 Project Setup Instructions
+
+Follow these steps to run the stack locally. Ensure you have Docker Desktop and [Ollama](https://ollama.com/) installed on your machine.
 
 ```bash
-# Clone the repository
+# 1. Clone the repository
 git clone <repo-link>
+cd <repo-folder>
 
-# Install dependencies
-...
+# 2. Start the FastAPI backend and Postgres pgvector Database
+docker-compose up --build -d
 
-# Run the project
-...
+# 3. View the live CI/CD Monitoring Dashboard
+# Open your browser to: http://localhost:8000/dashboard
+
+# 4. Trigger the Mock pipeline failure (simulate a broken CI build)
+pip install requests
+python agentic_repair_cli.py push --endpoint http://localhost:8000/webhook/ci_failure
+
+# 5. Boom! Watch the dashboard automatically populate with the AI's patch.
 ```
