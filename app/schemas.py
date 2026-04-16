@@ -15,6 +15,7 @@ class FixResponse(BaseModel):
     risk_score: int
     risk_reasoning: str
     status: str
+    pr_url: Optional[str] = None
     
     class Config:
         from_attributes = True

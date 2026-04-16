@@ -1,0 +1,64 @@
+name: CI/CD Pipeline with Agentic Repair
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        
+    - name: Set up Python Environment
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+        
+    - name: Install Dependencies
+      id: install
+      run: |
+        {
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest 
+        } 2>&1 | tee -a pipeline_output.log
+      continue-on-error: true
+        
+    - name: Run PyTest test cases
+      id: tests
+      if: steps.install.outcome == 'success'
+      run: |
+        echo "Running automated test suites..."
+        pytest tests/ 2>&1 | tee -a pipeline_output.log
+      continue-on-error: true
+
+    - name: Trigger Agentic AI Repair (On Failure)
+      if: steps.install.outcome == 'failure' || steps.tests.outcome == 'failure'
+      run: |
+        echo "Pipeline Failed! Packaging error context for Agentic AI..."
+        
+        GIT_DIFF=$(git diff HEAD~1 HEAD || echo "No diff available")
+        ERROR_LOGS=$(tail -n 100 pipeline_output.log || echo "Test logs missing")
+        
+        PAYLOAD=$(jq -n \
+                  --arg repo "${{ github.repository }}" \
+                  --arg commit "${{ github.sha }}" \
+                  --arg diff "$GIT_DIFF" \
+                  --arg logs "$ERROR_LOGS" \
+                  --arg status "failed" \
+                  '{repo_name: $repo, commit_hash: $commit, error_logs: $logs, git_diff: $diff, status: $status}')
+                  
+        curl -X POST "${{ secrets.AGENTIC_WEBHOOK_URL }}/webhook/ci_failure" \
+             -H "Content-Type: application/json" \
+             -d "$PAYLOAD"
+             
+        echo "Agentic AI pipeline triggered."
+        exit 1

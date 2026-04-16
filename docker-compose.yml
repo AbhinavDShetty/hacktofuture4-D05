@@ -12,7 +12,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d agentic_db"]
+      test: [ "CMD-SHELL", "pg_isready -U user -d agentic_db" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -25,9 +25,18 @@ services:
       - ./app:/app/app
     environment:
       - DATABASE_URL=postgresql+asyncpg://user:password@db:5432/agentic_db
-      # Connects to host's Ollama instance. Uses host.docker.internal on Docker Desktop 
-      # Or standard loopback if running in native Linux docker networking.
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434 
+      - LLM_API_KEY=${LLM_API_KEY}
+
+      # --- Agentic AI Configuration ---
+      # Example models: 'gpt-oss:120b-cloud', 'deepseek-v3.1:671b-cloud', 'glm5.1-cloud'
+      - LLM_MODEL=gpt-oss:120b-cloud
+      - LLM_API_BASE=https://api.ollama.com
+
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+
+      # --- GitHub Automation Configuration ---
+      # Required for the system to automatically generate Pull Requests.
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
     depends_on:
       db:
         condition: service_healthy

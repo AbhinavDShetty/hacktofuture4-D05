@@ -6,4 +6,9 @@ asyncpg
 pgvector
 langchain
 langchain-community
+langchain-openai
 jinja2
+PyGithub
+langchain-ollama
+langgraph
+langgraph-checkpoint

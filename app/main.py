@@ -23,12 +23,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 async def on_startup():
     await init_db()
 
-def bg_process_incident(incident_id: int):
-    import asyncio
-    # Simple background execution wrapper
-    asyncio.run(_bg_process_incident(incident_id))
-
-async def _bg_process_incident(incident_id: int):
+async def bg_process_incident(incident_id: int):
     async for db in get_db():
         result = await db.execute(select(Incident).where(Incident.id == incident_id))
         incident = result.scalar_one_or_none()
@@ -116,14 +111,26 @@ async def approve_fix(fix_id: int, db: AsyncSession = Depends(get_db)):
         
     fix_proposal.status = "approved"
     
-    # Simulate PR resolution
+    # Simulate or execute PR resolution
     result = await db.execute(select(Incident).where(Incident.id == fix_proposal.incident_id))
     incident = result.scalar_one_or_none()
     incident.status = "resolved"
     await db.commit()
     
-    print(f"\n[SUCCESS] Mock PR successfully generated to apply patch to commit {incident.commit_hash} in {incident.repo_name}!\n")
-    return {"message": "Fix approved. Mock PR created.", "status": "approved"}
+    from app.github_integration import apply_and_commit_to_main
+    commit_url = apply_and_commit_to_main(
+        repo_name=incident.repo_name,
+        base_commit=incident.commit_hash,
+        patch_code=fix_proposal.patch_code,
+        title=f"Agentic Fix: CI Pipeline Failure ({incident.commit_hash[:7]})",
+        description=f"Root Cause:\n{fix_proposal.root_cause}\n\nRisk Reasoning:\n{fix_proposal.risk_reasoning}"
+    )
+
+    fix_proposal.pr_url = commit_url  # reusing pr_url column to avoid schema migration
+    await db.commit()
+
+    print(f"\n[SUCCESS] Patch applied directly to the repository {incident.repo_name}! Commit URL: {commit_url}\n")
+    return {"message": "Fix approved. Patch committed to main branch.", "status": "approved", "pr_url": commit_url}
 
 @app.post("/api/fixes/{fix_id}/reject")
 async def reject_fix(fix_id: int, db: AsyncSession = Depends(get_db)):

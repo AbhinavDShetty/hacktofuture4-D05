@@ -171,7 +171,8 @@
                         `;
                     } else if (fix.status === 'approved') {
                         statusClass = 'status-approved';
-                        actionsHtml = `<strong style="color: #34d399; font-size: 1.1rem;">✓ Patch Approved (Mock PR Merged)</strong>`;
+                        const prLink = fix.pr_url && fix.pr_url !== "#" ? `<a href="${fix.pr_url}" target="_blank" style="color: #34d399; text-decoration: underline;">View Live GitHub PR</a>` : '';
+                        actionsHtml = `<strong style="color: #34d399; font-size: 1.1rem;">✓ Patch Approved & Pushed</strong><br><br>${prLink}`;
                     } else {
                         statusClass = 'status-rejected';
                         actionsHtml = `<strong style="color: #f87171; font-size: 1.1rem;">✕ Patch Rejected</strong>`;
@@ -210,8 +211,16 @@
                         <span class="status-badge ${inc.status === 'resolved' ? 'status-approved' : ''}">${inc.status}</span>
                         <h2>${inc.repo_name} <span style="font-size:16px;color:#94a3b8; font-weight: normal; margin-left: 10px;">Commit: <code>${inc.commit_hash}</code></span></h2>
                         
-                        <h3 style="border:none; margin-bottom: 5px;">RAW SYSTEM LOGS EXTRACTED:</h3>
-                        <pre style="max-height: 120px; margin-top: 0;"><code style="color: #ef4444">${inc.error_logs}</code></pre>
+                        <div class="flex">
+                            <div class="col">
+                                <h3 style="border:none; margin-bottom: 5px;">RAW SYSTEM LOGS EXTRACTED:</h3>
+                                <pre style="max-height: 150px; overflow-y: auto; margin-top: 0;"><code style="color: #ef4444">${inc.error_logs}</code></pre>
+                            </div>
+                            <div class="col">
+                                <h3 style="border:none; margin-bottom: 5px;">RECENT GIT DIFF:</h3>
+                                <pre style="max-height: 150px; overflow-y: auto; margin-top: 0;"><code style="color: #94a3b8">${inc.git_diff || 'No diff available'}</code></pre>
+                            </div>
+                        </div>
                         
                         <hr style="border-color:#334155; margin: 25px 0;" />
                         ${fixHtml}
