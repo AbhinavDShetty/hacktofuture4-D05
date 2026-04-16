@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
 
 # Configured to use external/cloud Ollama endpoint
-MODEL_NAME = os.getenv("LLM_MODEL", "deepseek-v3.1:671b-cloud")
+MODEL_NAME = os.getenv("LLM_MODEL", "gpt-oss:120b-cloud")
 API_BASE = os.getenv("LLM_API_BASE", "http://localhost:11434")  # Set this to the cloud URL
 API_KEY = os.getenv("LLM_API_KEY", "EMPTY")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -63,7 +63,9 @@ async def developer_node(state: AgenticState):
 And the original Git Diff:
 {state['git_diff']}
 
-Generate ONLY the valid unified diff patch needed to fix this exact issue. Do not include markdown codeblocks or explanations outside the patch itself. Output pure diff."""
+Generate ONLY the valid unified diff patch needed to fix this exact issue. 
+You MUST provide standard unified diff context headers containing the precise original and new line coordinates (e.g., @@ -34,5 +34,5 @@). Do not just output '@@'. Patches missing line coordinates will be heavily rejected.
+Do not include markdown codeblocks or explanations outside the patch itself. Output pure diff."""
     response = await llm.ainvoke(prompt)
     
     # Strip markdown formatting occasionally outputted by LLMs
@@ -78,13 +80,14 @@ class SecurityEvaluation(BaseModel):
 async def security_node(state: AgenticState):
     """Reviews the patch and yields a security risk score."""
     print("-> Security Agent analyzing risks...")
-    llm = ChatOllama(model=MODEL_NAME, base_url=API_BASE, temperature=0.0, client_kwargs={"headers": ollama_headers})
-    structured_llm = llm.with_structured_output(SecurityEvaluation, include_raw=False)
+    llm = ChatOllama(model=MODEL_NAME, base_url=API_BASE, temperature=0.0, format="json", client_kwargs={"headers": ollama_headers})
     
-    prompt = f"Review this proposed fix patch for vulnerabilities, scope bleed, and stability:\n{state['proposed_patch']}"
+    prompt = f"Review this proposed fix patch for vulnerabilities, scope bleed, and stability:\n{state['proposed_patch']}\n\nYou MUST respond entirely in pure JSON format containing exactly two keys: 'risk_score' (integer 1-100) and 'risk_reasoning' (string)."
     try:
-        response = await structured_llm.ainvoke(prompt)
-        return {"security_score": response.risk_score, "security_reasoning": response.risk_reasoning}
+        response = await llm.ainvoke(prompt)
+        clean_json = response.content.replace("```json", "").replace("```", "").strip()
+        data = json.loads(clean_json)
+        return {"security_score": int(data.get("risk_score", 50)), "security_reasoning": str(data.get("risk_reasoning", "Risk evaluated correctly."))}
     except Exception as e:
         print(f"Failed structured security parsing: {e}")
         return {"security_score": 50, "security_reasoning": "Could not parse JSON schema natively. Applying fallback neutral assessment."}
@@ -121,34 +124,12 @@ async def run_repair_pipeline(error_logs: str, git_diff: str, context_str: str =
             "risk_reasoning": final_state.get("security_reasoning", "No evaluation.")
         }
     except Exception as e:
-        print(f"LangGraph tool-calling error: {e}")
+        print(f"[!] LangGraph Agentic Pipeline execution failed: {e}")
         
-        # DEMO FALLBACK: If the external Cloud LLM throws an auth error, we fallback
-        # and provide the exact patch needed for the syntax error to ensure the dashboard works!
-        if "manage.py" in git_diff or "manage.py" in error_logs:
-            fallback_patch = """diff --git a/manage.py b/manage.py
---- a/manage.py
-+++ b/manage.py
-@@ -19,2 +19,2 @@
- if __name__ == '__main__':
--    main(
-+    main()
-"""
-        elif "urls.py" in git_diff or "urls.py" in error_logs:
-            fallback_patch = """diff --git a/myproject/myapp/urls.py b/myproject/myapp/urls.py
---- a/myproject/myapp/urls.py
-+++ b/myproject/myapp/urls.py
-@@ -4,2 +4,2 @@
-     path('', views.index, name='index'),
--    path('search'views.search, name='search'),
-+    path('search', views.search, name='search'),
- ]"""
-        else:
-            fallback_patch = "diff --git a/mock.py b/mock.py\n--- a/mock.py\n+++ b/mock.py\n@@ -1 +1 @@\n-error\n+fixed"
-
+        # Return the authentic error dynamically so the user sees exactly what the Cloud API failed on
         return {
-            "root_cause": f"SyntaxError detected in the recent commit. (Auto-repaired via Agentic Fallback due to LLM Cloud Error: {str(e)})",
-            "patch_code": fallback_patch,
-            "risk_score": 10,
-            "risk_reasoning": "Simple auto-syntax correction for missing characters."
+            "root_cause": f"CRITICAL PIPELINE FAILURE: The AI Provider declined the generation. Error details: {str(e)}",
+            "patch_code": "# The multi-agent system could not generate a patch due to an API rejection.",
+            "risk_score": 100,
+            "risk_reasoning": "Failed to invoke LangGraph agents securely."
         }

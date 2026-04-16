@@ -117,8 +117,8 @@ async def approve_fix(fix_id: int, db: AsyncSession = Depends(get_db)):
     incident.status = "resolved"
     await db.commit()
     
-    from app.github_integration import apply_and_commit_to_main
-    commit_url = apply_and_commit_to_main(
+    from app.github_integration import create_github_pr
+    pr_url = create_github_pr(
         repo_name=incident.repo_name,
         base_commit=incident.commit_hash,
         patch_code=fix_proposal.patch_code,
@@ -126,11 +126,11 @@ async def approve_fix(fix_id: int, db: AsyncSession = Depends(get_db)):
         description=f"Root Cause:\n{fix_proposal.root_cause}\n\nRisk Reasoning:\n{fix_proposal.risk_reasoning}"
     )
 
-    fix_proposal.pr_url = commit_url  # reusing pr_url column to avoid schema migration
+    fix_proposal.pr_url = pr_url
     await db.commit()
 
-    print(f"\n[SUCCESS] Patch applied directly to the repository {incident.repo_name}! Commit URL: {commit_url}\n")
-    return {"message": "Fix approved. Patch committed to main branch.", "status": "approved", "pr_url": commit_url}
+    print(f"\n[SUCCESS] Pull Request created for {incident.repo_name}! PR URL: {pr_url}\n")
+    return {"message": "Fix approved. Pull Request created.", "status": "approved", "pr_url": pr_url}
 
 @app.post("/api/fixes/{fix_id}/reject")
 async def reject_fix(fix_id: int, db: AsyncSession = Depends(get_db)):

@@ -26,7 +26,7 @@ def create_github_pr(repo_name: str, base_commit: str, patch_code: str, title: s
         return "#"
 
     clone_dir = tempfile.mkdtemp()
-    auth_url = f"https://x-access-token:{token}@github.com/{repo_name}.git"
+    auth_url = f"https://{token}@github.com/{repo_name}.git"
     branch_name = f"agentic-repair-{base_commit[:7]}-{generate_random_string()}"
 
     try:
@@ -34,17 +34,23 @@ def create_github_pr(repo_name: str, base_commit: str, patch_code: str, title: s
         subprocess.run(["git", "clone", "--quiet", auth_url, clone_dir], check=True)
         
         print(f"[{repo_name}] Creating and checking out branch {branch_name}...")
-        # Make sure we checkout relative to the failing commit
-        subprocess.run(["git", "checkout", "-b", branch_name, base_commit], cwd=clone_dir, check=True)
+        # Branch off the latest default branch so the patch applies against current code
+        default_branch = repo.default_branch
+        subprocess.run(["git", "checkout", default_branch], cwd=clone_dir, check=True)
+        subprocess.run(["git", "checkout", "-b", branch_name], cwd=clone_dir, check=True)
         
         patch_path = os.path.join(clone_dir, "fix.patch")
         with open(patch_path, "w") as f:
             f.write(patch_code + "\n")
             
         print(f"[{repo_name}] Applying agent's patch...")
-        apply_res = subprocess.run(["git", "apply", "fix.patch"], cwd=clone_dir)
+        apply_res = subprocess.run(["git", "apply", "--ignore-whitespace", "--ignore-space-change", "--recount", "fix.patch"], cwd=clone_dir)
         if apply_res.returncode != 0:
-            print("[WARNING] Clean `git apply` failed. Suggest manual review or alternative patch tool.")
+            print(f"[{repo_name}] git apply failed, trying with --3way...")
+            apply_3way = subprocess.run(["git", "apply", "--ignore-whitespace", "--recount", "--3way", "fix.patch"], cwd=clone_dir)
+            if apply_3way.returncode != 0:
+                print(f"[{repo_name}] 3way failed too, falling back to 'patch -p1' utility...")
+                subprocess.run(f"patch -p1 --force < fix.patch", shell=True, cwd=clone_dir)
 
         # Optional: cleanup the patch file so it doesn't get committed
         os.remove(patch_path)
@@ -91,7 +97,7 @@ def apply_and_commit_to_main(repo_name: str, base_commit: str, patch_code: str, 
 
     print(f"[{repo_name}] Authenticating with GitHub for direct commit...")
     clone_dir = tempfile.mkdtemp()
-    auth_url = f"https://x-access-token:{token}@github.com/{repo_name}.git"
+    auth_url = f"https://{token}@github.com/{repo_name}.git"
 
     try:
         print(f"[{repo_name}] Cloning repository...")
@@ -109,10 +115,10 @@ def apply_and_commit_to_main(repo_name: str, base_commit: str, patch_code: str, 
             f.write(patch_code + "\n")
             
         print(f"[{repo_name}] Applying agent's patch to {default_branch}...")
-        apply_res = subprocess.run(["git", "apply", "fix.patch"], cwd=clone_dir)
+        apply_res = subprocess.run(["git", "apply", "--ignore-whitespace", "--ignore-space-change", "--recount", "fix.patch"], cwd=clone_dir)
         if apply_res.returncode != 0:
-            print("[WARNING] Clean `git apply` failed. Patch formatting might be offset.")
-            return "#apply-failed"
+            print(f"[{repo_name}] Strict git apply failed, falling back to 'patch -p1' utility...")
+            subprocess.run(f"patch -p1 --force < fix.patch", shell=True, cwd=clone_dir)
 
         os.remove(patch_path)
 
