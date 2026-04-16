@@ -25,19 +25,20 @@ jobs:
     - name: Install Dependencies
       id: install
       run: |
-        {
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest 
-        } 2>&1 | tee -a pipeline_output.log
-      continue-on-error: true
-        
-    - name: Run PyTest test cases
+        python -m pip install --upgrade pip >> pipeline_output.log 2>&1 || exit 1
+        if [ -f requirements.txt ]; then pip install -r requirements.txt >> pipeline_output.log 2>&1 || exit 1; fi
+        pip install pytest >> pipeline_output.log 2>&1 || exit 1
+
+    - name: Run PyTest and Syntax Checks
       id: tests
-      if: steps.install.outcome == 'success'
+      if: success() || steps.install.outcome == 'success'
       run: |
-        echo "Running automated test suites..."
-        pytest tests/ 2>&1 | tee -a pipeline_output.log
+        echo "Running automated test suites and syntax validations..." >> pipeline_output.log
+        
+        # We must avoid bash pipes (| tee) because GitHub drops the exit code inside {} blocks!
+        # Instead, we directly append to the log file and manually force an exit 1 on failure.
+        python -m compileall -q . >> pipeline_output.log 2>&1 || exit 1
+        pytest . >> pipeline_output.log 2>&1 || exit 1
       continue-on-error: true
 
     - name: Trigger Agentic AI Repair (On Failure)
