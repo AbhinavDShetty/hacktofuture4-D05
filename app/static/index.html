@@ -125,6 +125,20 @@
             color: #f87171;
         }
 
+        .status-passed {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+        }
+
+        .incident-card-passed {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 1px solid #065f46;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
         h2 {
             margin-top: 0;
             color: #f8fafc;
@@ -155,8 +169,31 @@
             }
 
             data.forEach(inc => {
+                // --- SUCCESS CARD for passed commits ---
+                if (inc.status === 'passed') {
+                    container.innerHTML += `
+                        <div class="incident-card-passed">
+                            <span class="status-badge status-passed">PASSED</span>
+                            <h2>${inc.repo_name} <span style="font-size:16px;color:#94a3b8; font-weight: normal; margin-left: 10px;">Commit: <code>${inc.commit_hash}</code></span></h2>
+                            
+                            <div style="text-align:center; padding: 30px;">
+                                <div style="font-size: 3rem; margin-bottom: 15px; color: #10b981;">&#10003;</div>
+                                <p style="font-size: 1.2rem; color: #34d399; font-weight: 600; margin: 0;">All checks passed -- no errors detected</p>
+                                <p style="color: #94a3b8; margin-top: 10px; font-size: 14px;">Syntax validation and test suites completed successfully. No AI intervention required.</p>
+                            </div>
+                            
+                            <div style="margin-top: 10px;">
+                                <h3 style="border:none; margin-bottom: 5px;">CHANGED FILES:</h3>
+                                <pre style="max-height: 120px; overflow-y: auto; margin-top: 0;"><code style="color: #94a3b8">${inc.git_diff || 'No changes'}</code></pre>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // --- FAILURE CARD for broken commits ---
                 const fix = inc.fixes.length > 0 ? inc.fixes[inc.fixes.length - 1] : null;
-                let fixHtml = '<div style="text-align:center; padding: 40px; color:#38bdf8;"><strong>⏳ Multi-Agent Pipeline is currently analyzing this failure...</strong></div>';
+                let fixHtml = '<div style="text-align:center; padding: 40px; color:#38bdf8;"><strong>Multi-Agent Pipeline is currently analyzing this failure...</strong></div>';
 
                 if (fix) {
                     const riskClass = fix.risk_score >= 50 ? 'risk-high' : 'risk-low';
@@ -166,30 +203,30 @@
 
                     if (fix.status === 'pending_approval') {
                         actionsHtml = `
-                            <button class="btn-approve" onclick="reviewFix(${fix.id}, 'approve')">✓ Approve Patch</button>
-                            <button class="btn-reject" onclick="reviewFix(${fix.id}, 'reject')">✕ Reject</button>
+                            <button class="btn-approve" onclick="reviewFix(${fix.id}, 'approve')">&#10003; Approve Patch</button>
+                            <button class="btn-reject" onclick="reviewFix(${fix.id}, 'reject')">&#10005; Reject</button>
                         `;
                     } else if (fix.status === 'approved') {
                         statusClass = 'status-approved';
                         const prLink = fix.pr_url && fix.pr_url !== "#" ? `<a href="${fix.pr_url}" target="_blank" style="color: #34d399; text-decoration: underline;">View Live GitHub PR</a>` : '';
-                        actionsHtml = `<strong style="color: #34d399; font-size: 1.1rem;">✓ Patch Approved & Pushed</strong><br><br>${prLink}`;
+                        actionsHtml = `<strong style="color: #34d399; font-size: 1.1rem;">&#10003; Patch Approved & Pushed</strong><br><br>${prLink}`;
                     } else {
                         statusClass = 'status-rejected';
-                        actionsHtml = `<strong style="color: #f87171; font-size: 1.1rem;">✕ Patch Rejected</strong>`;
+                        actionsHtml = `<strong style="color: #f87171; font-size: 1.1rem;">&#10005; Patch Rejected</strong>`;
                     }
 
                     fixHtml = `
                         <div class="flex">
                             <div class="col" style="flex: 1.5;">
-                                <h3>🔎 Detective Agent Summary</h3>
+                                <h3>Detective Agent Summary</h3>
                                 <p style="line-height: 1.6; font-size: 15px;">${fix.root_cause}</p>
                                 
-                                <h3>💻 Developer Agent Patch</h3>
+                                <h3>Developer Agent Patch</h3>
                                 <pre><code>${fix.patch_code}</code></pre>
                             </div>
                             
                             <div class="col" style="background: rgba(15, 23, 42, 0.5); padding: 20px; border-radius: 8px;">
-                                <h3>🛡️ Security Reviewer Agent</h3>
+                                <h3>Security Reviewer Agent</h3>
                                 <div style="margin: 20px 0;">
                                     <span class="risk-badge ${riskClass}">Risk Score: ${fix.risk_score} / 100</span>
                                 </div>

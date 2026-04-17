@@ -78,18 +78,23 @@ async def bg_process_incident(incident_id: int):
 @app.post("/webhook/ci_failure")
 async def ci_failure_webhook(payload: WebhookPayload, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
     # Create the Incident
+    is_passed = payload.status == "passed"
     new_incident = Incident(
         repo_name=payload.repo_name,
         commit_hash=payload.commit_hash,
         error_logs=payload.error_logs,
         git_diff=payload.git_diff,
-        status="pending"
+        status="passed" if is_passed else "pending"
     )
     db.add(new_incident)
     await db.commit()
     await db.refresh(new_incident)
     
-    # Run the AI logic in background
+    if is_passed:
+        print(f"\n[OK] Commit {payload.commit_hash[:7]} for {payload.repo_name} passed all checks.\n")
+        return {"message": "Pipeline passed. No errors detected.", "incident_id": new_incident.id}
+    
+    # Only run the AI logic for actual failures
     background_tasks.add_task(bg_process_incident, new_incident.id)
     
     return {"message": "Incident received. Agentic pipeline processing.", "incident_id": new_incident.id}
@@ -142,6 +147,28 @@ async def reject_fix(fix_id: int, db: AsyncSession = Depends(get_db)):
     fix_proposal.status = "rejected"
     await db.commit()
     return {"message": "Fix rejected.", "status": "rejected"}
+
+@app.get("/api/incidents/{incident_id}/status")
+async def get_incident_status(incident_id: int, db: AsyncSession = Depends(get_db)):
+    """Polling endpoint for the CI workflow to check if the AI fix is ready."""
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(
+        select(Incident).options(selectinload(Incident.fixes)).where(Incident.id == incident_id)
+    )
+    incident = result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    
+    fix = incident.fixes[-1] if incident.fixes else None
+    return {
+        "incident_id": incident.id,
+        "status": incident.status,
+        "fix_ready": fix is not None,
+        "patch_code": fix.patch_code if fix else None,
+        "root_cause": fix.root_cause if fix else None,
+        "risk_score": fix.risk_score if fix else None,
+        "fix_id": fix.id if fix else None,
+    }
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard():
