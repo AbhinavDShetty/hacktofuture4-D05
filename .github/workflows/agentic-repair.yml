@@ -37,7 +37,7 @@ jobs:
         
         # Only compile Python files changed in the CURRENT commit so we don't flag
         # pre-existing errors from older commits.
-        CHANGED_PY=$(git diff --name-only HEAD~1 HEAD -- '*.py' 2>/dev/null || true)
+        CHANGED_PY=$(git log -1 --name-only --format="" --diff-filter=ACMR HEAD -- '*.py' 2>/dev/null || true)
         if [ -n "$CHANGED_PY" ]; then
           echo "Syntax-checking changed files: $CHANGED_PY" >> pipeline_output.log
           echo "$CHANGED_PY" | xargs python -m py_compile >> pipeline_output.log 2>&1 || exit 1
@@ -61,7 +61,7 @@ jobs:
       run: |
         echo "Pipeline Failed! Packaging error context for Agentic AI..."
         
-        GIT_DIFF=$(git diff HEAD~1 HEAD || echo "No diff available")
+        GIT_DIFF=$(git log -1 -p --format="" HEAD | head -200 || echo "No diff available")
         ERROR_LOGS=$(tail -n 100 pipeline_output.log || echo "Test logs missing")
         
         PAYLOAD=$(jq -n \
@@ -151,7 +151,7 @@ jobs:
       run: |
         echo "Pipeline Passed! Reporting success to Agentic Dashboard..."
         
-        GIT_DIFF=$(git diff HEAD~1 HEAD -- '*.py' 2>/dev/null || echo "No changes")
+        GIT_DIFF=$(git log -1 -p --format="" HEAD -- '*.py' | head -200 || echo "No changes")
         
         PAYLOAD=$(jq -n \
                   --arg repo "${{ github.repository }}" \
